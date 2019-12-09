@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(serial_servo_driver)
+project(serial_servo_msgs)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -17,11 +17,9 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(serial_servo_msgs REQUIRED)
+# uncomment the following section in order to fill in
+# further dependencies manually.
+# find_package(<dependency> REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -34,16 +32,14 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-add_executable(serial_servo_driver src/serial_servo_driver.cpp)
-ament_target_dependencies(serial_servo_driver rclcpp serial_servo_msgs)
-
-add_executable(serial_servo_test src/serial_servo_test.cpp)
-ament_target_dependencies(serial_servo_test rclcpp serial_servo_msgs)
-
-install(TARGETS
-  serial_servo_driver
-  serial_servo_test
-  DESTINATION lib/${PROJECT_NAME}
+find_package(rosidl_default_generators REQUIRED)
+set(msg_files
+  "msg/SerialServo.msg"
+  "msg/SerialServoArray.msg"
 )
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${msg_files}
+)
+ament_export_dependencies(rosidl_default_runtime)
 
 ament_package()
