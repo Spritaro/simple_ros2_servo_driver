@@ -194,7 +194,7 @@ private:
 
         this->get_parameter_or("device_file", device_file_, std::string("/dev/ttyS1"));
         this->get_parameter_or("angular_acceleration", ang_acc_, 352.9f * 2.0f);  // deg/sec^2
-        this->get_parameter_or("update_period", update_period_, 10u);   // millisec
+        this->get_parameter_or("update_period", update_period_, 20u);   // millisec
 
         delta_time_ = static_cast<float>(update_period_) / 1000.0f; // millisec to sec
     }
@@ -216,6 +216,7 @@ private:
         // serial communication settings
         struct termios tio;
         tcgetattr(fd_, &tio);
+        cfmakeraw(&tio);         // 特殊文字の処理を無効化
         tio.c_cflag &= ~CSIZE;   // 文字サイズ指定用のビットをクリアする
         tio.c_cflag &= ~CRTSCTS; // RTS/CTSフロー制御を無効にする
         tio.c_cflag |= CREAD;    // 受信を有効にする
@@ -224,8 +225,7 @@ private:
         tio.c_cflag |= PARENB;   // パリティビット有効化
         tio.c_cflag &= ~PARODD;  // 偶数パリティ
 
-        tio.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
-        tio.c_cc[VMIN] = 0;             //      ノンブロッキング
+        tio.c_cc[VMIN] = 0;
         tio.c_cc[VTIME]= 0;
 
         cfsetispeed(&tio, B115200);
@@ -258,13 +258,12 @@ private:
 
             int len = 3;
             write(fd_, buf, len);
-            usleep(300);
+            RCLCPP_INFO(this->get_logger(), "target  %x %d", buf[0], (buf[1]<<7)+buf[2]);
+            usleep(1000);
 
             // receive data
-            len = read(fd_, buf, 6);
-            usleep(300);
-            // RCLCPP_INFO(this->get_logger(), "target  %x %d", buf[0], (buf[1]<<7)+buf[2]);
-            // RCLCPP_INFO(this->get_logger(), "current %x %d", buf[3], (buf[4]<<7)+buf[5]);
+            len = read(fd_, buf, 3);
+            RCLCPP_INFO(this->get_logger(), "current %x %d", buf[3], (buf[4]<<7)+buf[5]);
 
             return (buf[4]<<7)+buf[5];
     }
