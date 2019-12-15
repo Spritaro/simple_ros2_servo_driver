@@ -258,12 +258,12 @@ private:
 
             int len = 3;
             write(fd_, buf, len);
-            RCLCPP_INFO(this->get_logger(), "target  %x %d", buf[0], (buf[1]<<7)+buf[2]);
+            // RCLCPP_INFO(this->get_logger(), "target  %x %d", buf[0], (buf[1]<<7)+buf[2]);
             usleep(1000);
 
             // receive data
             len = read(fd_, buf, 3);
-            RCLCPP_INFO(this->get_logger(), "current %x %d", buf[3], (buf[4]<<7)+buf[5]);
+            // RCLCPP_INFO(this->get_logger(), "current %x %d", buf[3], (buf[4]<<7)+buf[5]);
 
             return (buf[4]<<7)+buf[5];
     }
