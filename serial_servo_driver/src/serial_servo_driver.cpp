@@ -25,8 +25,10 @@ public:
     {
     }
 
-    void set_target_angle(const float tar_ang, const float tar_time)
+    void set_target_angle(const int device_file_id, const float tar_ang, const float tar_time)
     {
+        device_file_id_ = device_file_id;
+
         tar_ang_     = tar_ang;
         tar_time_    = tar_time;
         cur_time_    = 0.0f;
@@ -58,6 +60,11 @@ public:
         return cur_ang_;
     }
 
+    int get_device_file_id()
+    {
+        return device_file_id_;
+    }
+
     uint8_t get_id()
     {
         return id_;
@@ -74,6 +81,7 @@ public:
     }
 
 private:
+    int device_file_id_;
     uint8_t id_;
     float cur_ang_;
     float tar_ang_;
@@ -92,29 +100,30 @@ public:
     {
         get_parameters();
 
-        setup_device();
-
         // message event handler
         auto callback =
         [this](const serial_servo_msgs::msg::SerialServoArray::SharedPtr msg) -> void
         {
-            if(msg->device_file != device_file_)
+            // add new serial port if new device file name was received
+            if( device_file_name_to_id_.find(msg->device_file) == device_file_name_to_id_.end() )
             {
-                return;
+                RCLCPP_INFO(this->get_logger(), "add serial port %s", msg->device_file.c_str());
+                setup_device(msg->device_file);
             }
 
             for(auto & serial_servo : msg->serial_servos)
             {
                 // add new servo if new ID was received
-                if(servo_id_to_no_.find(serial_servo.id) == servo_id_to_no_.end() )
+                if( servo_id_to_no_.find(serial_servo.id) == servo_id_to_no_.end() )
                 {
                     RCLCPP_INFO(this->get_logger(), "add servo id %d", serial_servo.id);
                     add_servo(serial_servo.id);
                 }
-                RCLCPP_INFO(this->get_logger(), "target_angle %f", serial_servo.target_angle );
-                RCLCPP_INFO(this->get_logger(), "target_time %f", serial_servo.target_time );
+                // RCLCPP_INFO(this->get_logger(), "target_angle %f", serial_servo.target_angle );
+                // RCLCPP_INFO(this->get_logger(), "target_time %f", serial_servo.target_time );
 
                 servo_states_.at( servo_id_to_no_.at(serial_servo.id) ).set_target_angle(
+                    device_file_name_to_id_.at(msg->device_file),
                     serial_servo.target_angle,
                     serial_servo.target_time
                 );
@@ -132,7 +141,11 @@ public:
             for(auto & servo_state : servo_states_)
             {
                 servo_state.update_current_angle(delta_time_);
-                set_position(servo_state.get_id(), servo_state.get_new_position());
+                set_position(
+                    servo_state.get_device_file_id(),
+                    servo_state.get_id(),
+                    servo_state.get_new_position()
+                );
             }
         };
         timer_ = create_wall_timer(std::chrono::milliseconds(update_period_), control_servo);
@@ -140,8 +153,11 @@ public:
 
     void close_device()
     {
-        tcflush(fd_, TCIOFLUSH);       // 未送信・未受信のデータを破棄
-        close(fd_);
+        for(auto device : device_file_name_to_id_)
+        {
+            tcflush(device.second, TCIOFLUSH);       // 未送信・未受信のデータを破棄
+            close(device.second);
+        }
     }
 
 private:
@@ -149,25 +165,19 @@ private:
     void get_parameters()
     {
         RCLCPP_INFO(this->get_logger(), "get parameters...");
-
-        this->declare_parameter("device_file");
-        this->declare_parameter("max_angular_velocity");
         this->declare_parameter("update_period");
-
-        this->get_parameter_or("device_file", device_file_, std::string("/dev/ttyS1"));
         this->get_parameter_or("update_period", update_period_, 20u);   // millisec
-
         delta_time_ = static_cast<float>(update_period_) / 1000.0f; // millisec to sec
     }
 
-    void setup_device()
+    void setup_device(std::string device_file_name)
     {
         RCLCPP_INFO(this->get_logger(), "setup device...");
 
         // open device
-        fd_ = open(device_file_.c_str(), O_RDWR);
-        RCLCPP_INFO(this->get_logger(), "device no %d", fd_);
-        if(fd_ == -1)
+        int device_file_id = open(device_file_name.c_str(), O_RDWR);
+        RCLCPP_INFO(this->get_logger(), "device no %d", device_file_id);
+        if(device_file_id == -1)
         {
             RCLCPP_INFO(this->get_logger(), "device open error");
             rclcpp::shutdown();
@@ -176,7 +186,7 @@ private:
 
         // serial communication settings
         struct termios tio;
-        tcgetattr(fd_, &tio);
+        tcgetattr(device_file_id, &tio);
         cfmakeraw(&tio);         // 特殊文字の処理を無効化
         tio.c_cflag &= ~CSIZE;   // 文字サイズ指定用のビットをクリアする
         tio.c_cflag &= ~CRTSCTS; // RTS/CTSフロー制御を無効にする
@@ -192,8 +202,10 @@ private:
         cfsetispeed(&tio, B115200);
         cfsetospeed(&tio, B115200);
 
-        tcflush(fd_, TCIOFLUSH);       // 未送信・未受信のデータを破棄
-        tcsetattr(fd_, TCSANOW, &tio); // デバイスに設定を適用
+        tcflush(device_file_id, TCIOFLUSH);       // 未送信・未受信のデータを破棄
+        tcsetattr(device_file_id, TCSANOW, &tio); // デバイスに設定を適用
+
+        device_file_name_to_id_.emplace(device_file_name, device_file_id);
     }
 
     void add_servo(uint8_t id)
@@ -203,7 +215,7 @@ private:
         nb_servo_++;
     }
 
-    uint set_position(uint8_t id, uint pos)
+    uint set_position(int device_file_id, uint8_t id, uint pos)
     {
             // send data
             uint8_t cmd = 0x80;
@@ -218,24 +230,24 @@ private:
             buf[2] = pos_l;
 
             int len = 3;
-            write(fd_, buf, len);
+            write(device_file_id, buf, len);
             // RCLCPP_INFO(this->get_logger(), "target  %x %d", buf[0], (buf[1]<<7)+buf[2]);
             usleep(1000);
 
             // receive data
-            len = read(fd_, buf, 3);
+            len = read(device_file_id, buf, 3);
             // RCLCPP_INFO(this->get_logger(), "current %x %d", buf[3], (buf[4]<<7)+buf[5]);
 
             return (buf[4]<<7)+buf[5];
     }
 
-
-    int fd_;
     int nb_servo_;
     std::string device_file_;
 
     uint update_period_;
     float delta_time_;
+
+    std::map<std::string, int> device_file_name_to_id_;
 
     std::vector<ServoState> servo_states_;
     std::map<uint8_t, uint8_t> servo_id_to_no_;
