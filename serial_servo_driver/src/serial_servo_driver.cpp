@@ -15,48 +15,30 @@ using namespace std::chrono_literals;
 class ServoState
 {
 public:
-    explicit ServoState(const uint8_t id, const float ang_acc):
+    explicit ServoState(const uint8_t id):
         id_(id),
-        ang_acc_(ang_acc),
         cur_ang_(0.0f),
         tar_ang_(0.0f),
         cur_ang_vel_(0.0f),
         cur_time_(0.0f),
-        acc_time_(0.0f),
-        dec_time_(0.0f),
-        tar_time_(0.0f),
-        tar_ccw_(1.0f)
+        tar_time_(0.0f)
     {
-        assert(ang_acc_ > 0.0f);
     }
 
     void set_target_angle(const float tar_ang, const float tar_time)
     {
         tar_ang_     = tar_ang;
         tar_time_    = tar_time;
-        cur_ang_vel_ = 0.0f;
         cur_time_    = 0.0f;
 
-        float ang_diff = fabsf(tar_ang_ - cur_ang_);
-
-        // 移動時間が足りない場合は時間を伸ばす
-        if(ang_acc_ * tar_time_ * tar_time_ < 4.0f * ang_diff)
+        // 移動速度を計算
+        if( fabsf(tar_time_) < 0.00001)
         {
-            tar_time_ = 2.0f * sqrtf(ang_diff / ang_acc_);
-        }
-
-        // 加速時間・減速時間を計算
-        acc_time_ = ( tar_time_ - sqrtf( tar_time_ * tar_time_ - 4.0f * ang_diff / ang_acc_) ) / 2.0f;
-        dec_time_ = tar_time - acc_time_;
-
-        // 時計回り・半時計回りを設定
-        if(tar_ang_ - cur_ang_ >= 0)
-        {
-            tar_ccw_ = 1.0f;
+            cur_ang_vel_ = 0.0f;
         }
         else
         {
-            tar_ccw_ = -1.0f;
+            cur_ang_vel_ = (tar_ang_ - cur_ang_) / tar_time;
         }
     }
 
@@ -67,25 +49,10 @@ public:
         {
             cur_ang_ = tar_ang_;
         }
-        // 減速
-        else if(cur_time_ >= dec_time_)
-        {
-            cur_ang_ += (cur_ang_vel_ * delta_time) + (tar_ccw_ * ang_acc_ * delta_time * delta_time / 2.0);
-            cur_ang_vel_ += tar_ccw_ * ang_acc_ * delta_time;
-            cur_time_ += delta_time;
-        }
-        // 等速
-        else if(cur_time_ >= acc_time_)
-        {
-            cur_ang_vel_ = tar_ccw_ * ang_acc_ * acc_time_;
-            cur_ang_ += cur_ang_vel_ * delta_time;
-            cur_time_ += delta_time;
-        }
-        // 加速
+        // 移動
         else
         {
-            cur_ang_ += (cur_ang_vel_ * delta_time) + (tar_ccw_ * ang_acc_ * delta_time * delta_time / 2.0);
-            cur_ang_vel_ += tar_ccw_ * ang_acc_ * delta_time;
+            cur_ang_ += cur_ang_vel_ * delta_time;
             cur_time_ += delta_time;
         }
         return cur_ang_;
@@ -108,15 +75,11 @@ public:
 
 private:
     uint8_t id_;
-    float ang_acc_;
     float cur_ang_;
     float tar_ang_;
     float cur_ang_vel_;
     float cur_time_;    // current time
-    float acc_time_;    // acceleration end time
-    float dec_time_;    // deceleration begin time
     float tar_time_;    // target time
-    float tar_ccw_;     // target counter-clockwise
 };
 
 class SerialServoDriver : public rclcpp::Node
@@ -189,11 +152,9 @@ private:
 
         this->declare_parameter("device_file");
         this->declare_parameter("max_angular_velocity");
-        this->declare_parameter("angular_acceleration");
         this->declare_parameter("update_period");
 
         this->get_parameter_or("device_file", device_file_, std::string("/dev/ttyS1"));
-        this->get_parameter_or("angular_acceleration", ang_acc_, 352.9f * 6.0f);  // deg/sec^2
         this->get_parameter_or("update_period", update_period_, 20u);   // millisec
 
         delta_time_ = static_cast<float>(update_period_) / 1000.0f; // millisec to sec
@@ -238,7 +199,7 @@ private:
     void add_servo(uint8_t id)
     {
         servo_id_to_no_.emplace(id, nb_servo_);
-        servo_states_.emplace_back(ServoState(id, ang_acc_));
+        servo_states_.emplace_back(ServoState(id));
         nb_servo_++;
     }
 
@@ -272,8 +233,6 @@ private:
     int fd_;
     int nb_servo_;
     std::string device_file_;
-
-    float ang_acc_;
 
     uint update_period_;
     float delta_time_;
