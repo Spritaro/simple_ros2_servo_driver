@@ -70,8 +70,8 @@ public:
         // 減速
         else if(cur_time_ >= dec_time_)
         {
-            cur_ang_vel_ -= tar_ccw_ * ang_acc_ * delta_time;
-            cur_ang_ += cur_ang_vel_ * delta_time;
+            cur_ang_ += (cur_ang_vel_ * delta_time) + (tar_ccw_ * ang_acc_ * delta_time * delta_time / 2.0);
+            cur_ang_vel_ += tar_ccw_ * ang_acc_ * delta_time;
             cur_time_ += delta_time;
         }
         // 等速
@@ -84,8 +84,8 @@ public:
         // 加速
         else
         {
+            cur_ang_ += (cur_ang_vel_ * delta_time) + (tar_ccw_ * ang_acc_ * delta_time * delta_time / 2.0);
             cur_ang_vel_ += tar_ccw_ * ang_acc_ * delta_time;
-            cur_ang_ += cur_ang_vel_ * delta_time;
             cur_time_ += delta_time;
         }
         return cur_ang_;
@@ -193,7 +193,7 @@ private:
         this->declare_parameter("update_period");
 
         this->get_parameter_or("device_file", device_file_, std::string("/dev/ttyS1"));
-        this->get_parameter_or("angular_acceleration", ang_acc_, 352.9f * 2.0f);  // deg/sec^2
+        this->get_parameter_or("angular_acceleration", ang_acc_, 352.9f * 6.0f);  // deg/sec^2
         this->get_parameter_or("update_period", update_period_, 20u);   // millisec
 
         delta_time_ = static_cast<float>(update_period_) / 1000.0f; // millisec to sec
