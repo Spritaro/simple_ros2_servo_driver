@@ -34,6 +34,9 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+include_directories(include)
+ament_export_include_directories(include)
+
 add_executable(serial_servo_driver src/serial_servo_driver.cpp)
 ament_target_dependencies(serial_servo_driver rclcpp serial_servo_msgs)
 
