@@ -9,6 +9,7 @@
 
 #include "serial_servo_msgs/msg/serial_servo.hpp"
 #include "serial_servo_msgs/msg/serial_servo_array.hpp"
+#include "serial_servo_msgs/msg/serial_servo_array_array.hpp"
 
 using namespace std::chrono_literals;
 
@@ -102,36 +103,39 @@ public:
 
         // message event handler
         auto callback =
-        [this](const serial_servo_msgs::msg::SerialServoArray::SharedPtr msg) -> void
+        [this](const serial_servo_msgs::msg::SerialServoArrayArray::SharedPtr msg) -> void
         {
-            // add new serial port if new device file name was received
-            if( device_file_name_to_id_.find(msg->device_file) == device_file_name_to_id_.end() )
+            for(auto & serial_servo_array : msg->serial_servo_arrays)
             {
-                // RCLCPP_INFO(this->get_logger(), "add serial port %s", msg->device_file.c_str());
-                setup_device(msg->device_file);
-            }
-
-            for(auto & serial_servo : msg->serial_servos)
-            {
-                // add new servo if new ID was received
-                if( servo_id_to_no_.find(serial_servo.id) == servo_id_to_no_.end() )
+                // add new serial port if new device file name was received
+                if( device_file_name_to_id_.find(serial_servo_array.device_file) == device_file_name_to_id_.end() )
                 {
-                    // RCLCPP_INFO(this->get_logger(), "add servo id %d", serial_servo.id);
-                    add_servo(serial_servo.id);
+                    // RCLCPP_INFO(this->get_logger(), "add serial port %s", serial_servo_array.device_file.c_str());
+                    setup_device(serial_servo_array.device_file);
                 }
-                // RCLCPP_INFO(this->get_logger(), "target_angle %f", serial_servo.target_angle );
-                // RCLCPP_INFO(this->get_logger(), "target_time %f", serial_servo.target_time );
 
-                servo_states_.at( servo_id_to_no_.at(serial_servo.id) ).set_target_angle(
-                    device_file_name_to_id_.at(msg->device_file),
-                    serial_servo.target_angle,
-                    serial_servo.target_time
-                );
+                for(auto & serial_servo : serial_servo_array.serial_servos)
+                {
+                    // add new servo if new ID was received
+                    if( servo_id_to_no_.find(serial_servo.id) == servo_id_to_no_.end() )
+                    {
+                        // RCLCPP_INFO(this->get_logger(), "add servo id %d", serial_servo.id);
+                        add_servo(serial_servo.id);
+                    }
+                    // RCLCPP_INFO(this->get_logger(), "target_angle %f", serial_servo.target_angle );
+                    // RCLCPP_INFO(this->get_logger(), "target_time %f", serial_servo.target_time );
+
+                    servo_states_.at( servo_id_to_no_.at(serial_servo.id) ).set_target_angle(
+                        device_file_name_to_id_.at(serial_servo_array.device_file),
+                        serial_servo.target_angle,
+                        serial_servo.target_time
+                    );
+                }
             }
         };
         std::string topic_name = "/serial_servo_target";
         rclcpp::QoS qos(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_default));
-        sub_ = this->create_subscription<serial_servo_msgs::msg::SerialServoArray>(
+        sub_ = this->create_subscription<serial_servo_msgs::msg::SerialServoArrayArray>(
             topic_name, qos, callback);
 
         // timer event handler
@@ -252,6 +256,6 @@ private:
     std::vector<ServoState> servo_states_;
     std::map<uint8_t, uint8_t> servo_id_to_no_;
 
-    rclcpp::Subscription<serial_servo_msgs::msg::SerialServoArray>::SharedPtr sub_;
+    rclcpp::Subscription<serial_servo_msgs::msg::SerialServoArrayArray>::SharedPtr sub_;
     rclcpp::TimerBase::SharedPtr timer_;
 };
