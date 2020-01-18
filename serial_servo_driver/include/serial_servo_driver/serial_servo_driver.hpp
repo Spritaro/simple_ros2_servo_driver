@@ -97,6 +97,7 @@ public:
 
     explicit SerialServoDriver():
         Node("serial_servo_driver"),
+        is_registered_(false),
         nb_servo_(0)
     {
         get_parameters();
@@ -105,23 +106,35 @@ public:
         auto callback =
         [this](const serial_servo_msgs::msg::SerialServoArrayArray::SharedPtr msg) -> void
         {
+            if(!is_registered_)
+            {
+                is_registered_ = true;
+
+                for(auto & serial_servo_array : msg->serial_servo_arrays)
+                {
+                    // add new serial port if new device file name was received
+                    if( device_file_name_to_id_.find(serial_servo_array.device_file) == device_file_name_to_id_.end() )
+                    {
+                        // RCLCPP_INFO(this->get_logger(), "add serial port %s", serial_servo_array.device_file.c_str());
+                        setup_device(serial_servo_array.device_file);
+                    }
+
+                    for(auto & serial_servo : serial_servo_array.serial_servos)
+                    {
+                        // add new servo if new ID was received
+                        if( servo_id_to_no_.find(serial_servo.id) == servo_id_to_no_.end() )
+                        {
+                            // RCLCPP_INFO(this->get_logger(), "add servo id %d", serial_servo.id);
+                            add_servo(serial_servo.id);
+                        }
+                    }
+                }
+            }
+                
             for(auto & serial_servo_array : msg->serial_servo_arrays)
             {
-                // add new serial port if new device file name was received
-                if( device_file_name_to_id_.find(serial_servo_array.device_file) == device_file_name_to_id_.end() )
-                {
-                    // RCLCPP_INFO(this->get_logger(), "add serial port %s", serial_servo_array.device_file.c_str());
-                    setup_device(serial_servo_array.device_file);
-                }
-
                 for(auto & serial_servo : serial_servo_array.serial_servos)
                 {
-                    // add new servo if new ID was received
-                    if( servo_id_to_no_.find(serial_servo.id) == servo_id_to_no_.end() )
-                    {
-                        // RCLCPP_INFO(this->get_logger(), "add servo id %d", serial_servo.id);
-                        add_servo(serial_servo.id);
-                    }
                     // RCLCPP_INFO(this->get_logger(), "target_angle %f", serial_servo.target_angle );
                     // RCLCPP_INFO(this->get_logger(), "target_time %f", serial_servo.target_time );
 
@@ -236,7 +249,7 @@ private:
             int len = 3;
             write(device_file_id, buf, len);
             // RCLCPP_INFO(this->get_logger(), "target  %x %d", buf[0], (buf[1]<<7)+buf[2]);
-            usleep(1000);
+            usleep(800);
 
             // receive data
             len = read(device_file_id, buf, 3);
@@ -244,6 +257,8 @@ private:
 
             return (buf[4]<<7)+buf[5];
     }
+
+    bool is_registered_;
 
     int nb_servo_;
     std::string device_file_;
