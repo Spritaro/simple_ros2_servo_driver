@@ -47,6 +47,12 @@ public:
 
     float update_current_angle(const float delta_time)
     {
+        // トルクOFF
+        if(tar_ang_ == 1000)
+        {
+            return cur_ang_;
+        }
+
         // 停止
         if(cur_time_ >= tar_time_)
         {
@@ -77,6 +83,12 @@ public:
         const float max_pos = 11500.0f;
         const float min_ang = -135.0f;
         const float max_ang = 135.0f;
+
+        // トルクOFF
+        if (tar_ang_ == 1000)
+        {
+            return 0;
+        }
 
         return (max_pos - min_pos) * (cur_ang_ - min_ang) / (max_ang - min_ang) + min_pos;
     }
