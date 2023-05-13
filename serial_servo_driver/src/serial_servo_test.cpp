@@ -17,7 +17,7 @@ public:
         msg_->serial_servos.emplace_back(servo);
         msg_->serial_servos.emplace_back(servo);
 
-        pub_ = create_publisher<serial_servo_msgs::msg::SerialServoArray>("/serial_servo_target");
+        pub_ = create_publisher<serial_servo_msgs::msg::SerialServoArray>("/serial_servo_target", 10);
     }
 
     void send_new_angles()
@@ -31,7 +31,7 @@ public:
         msg_->serial_servos.at(1).target_time = 1.0;
 
         RCLCPP_INFO(this->get_logger(), "send new angles");
-        pub_->publish(msg_);
+        pub_->publish(*msg_);
         usleep(1 * 1000 * 1000);
 
         msg_->serial_servos.at(0).id = 14;
@@ -43,7 +43,7 @@ public:
         msg_->serial_servos.at(1).target_time = 2.0;
 
         RCLCPP_INFO(this->get_logger(), "send new angles");
-        pub_->publish(msg_);
+        pub_->publish(*msg_);
         usleep(1 * 1000 * 1000);
 
         msg_->serial_servos.at(0).id = 14;
@@ -55,7 +55,7 @@ public:
         msg_->serial_servos.at(1).target_time = 1.0;
 
         RCLCPP_INFO(this->get_logger(), "send new angles");
-        pub_->publish(msg_);
+        pub_->publish(*msg_);
         usleep(1 * 1000 * 1000);
 
         msg_->serial_servos.at(0).id = 14;
@@ -67,7 +67,7 @@ public:
         msg_->serial_servos.at(1).target_time = 0.5;
 
         RCLCPP_INFO(this->get_logger(), "send new angles");
-        pub_->publish(msg_);
+        pub_->publish(*msg_);
         usleep(1 * 1000 * 1000);
 
         msg_->serial_servos.at(0).id = 14;
@@ -79,7 +79,7 @@ public:
         msg_->serial_servos.at(1).target_time = 0.1;
 
         RCLCPP_INFO(this->get_logger(), "send new angles");
-        pub_->publish(msg_);
+        pub_->publish(*msg_);
         usleep(1 * 1000 * 1000);
     }
 
